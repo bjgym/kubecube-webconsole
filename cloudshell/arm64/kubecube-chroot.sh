@@ -54,11 +54,15 @@ if [ ! -d $DIR ]; then
     cp /etc/resolv.conf $DIR/etc/resolv.conf
 fi
 
-## wget download kubeconfig
-wget -d "${headers[@]}" https://kubecube:7443/api/v1/cube/user/kubeconfigs -O $DIR/tmp/$TMP_CONFIG_NAME-base64 --no-check-certificate &> /dev/null
-# check whether kubeconfig download success
+## download the kubeconfig of the cluster this session belongs to
+KUBECUBE_URL=${PIVOT_CUBE_URL:-https://kubecube:7443}
+KUBECONFIG_URL="${KUBECUBE_URL}/api/v1/cube/user/kubeconfigs?cluster=${CLUSTER}"
+
+wget -d "${headers[@]}" "${KUBECONFIG_URL}" -O $DIR/tmp/$TMP_CONFIG_NAME-base64 --no-check-certificate &> /dev/null
+# check whether kubeconfig download success; a deployment that terminates TLS
+# elsewhere answers on plain http
 if [ $? -ne 0 ]; then
-    wget -d "${headers[@]}" http://kubecube:7443/api/v1/cube/user/kubeconfigs -O $DIR/tmp/$TMP_CONFIG_NAME-base64 --no-check-certificate &> /dev/null
+    wget -d "${headers[@]}" "${KUBECONFIG_URL/https:/http:}" -O $DIR/tmp/$TMP_CONFIG_NAME-base64 --no-check-certificate &> /dev/null
     if [ $? -ne 0 ]; then
     exit 1
     fi

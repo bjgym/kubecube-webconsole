@@ -36,6 +36,19 @@ During the interaction between the front and webconsole, there is two API calls:
   `{"websocket":true,"cookie_needed":false,"origins":["*:*"],"entropy":1983920037}`
   The value of websocket is `true`, indicates that the sockjs used in webconsole has the websocket function enabled, so the front-end sockJs will establish a websocket connection with webconsole.
 
+## Building the cloudshell image
+
+The image is assembled in three steps, all owned by `cloudshell/Makefile`:
+
+``` shell
+make -C cloudshell base-image    # publishes BASE_IMG from cloudshell/base/Dockerfile
+make -C cloudshell multi-image   # publishes IMG-amd64 and IMG-arm64, then IMG
+```
+
+`BASE_IMG` is what the two architecture Dockerfiles build `FROM`: it has to be a multi-arch manifest and has to be pushed before them. `IMG` is the published manifest, and it has to be a **new tag** — the Deployment pulls with `IfNotPresent`, so a reused tag would keep running the old image. Neither variable is a chart value: the base image is a build-time dependency and does not belong in `kubecube-chart/images.list`.
+
+Both architecture images download the same kubectl, pinned by `KUBECTL_VERSION` and checked against the sha256 Kubernetes publishes next to the binary. The pin is `v1.22.2`; Kubernetes supports a kubectl within one minor version of the apiserver, so it covers apiservers `1.21`–`1.23`. The installer ships manifests for member clusters from `1.18.20` to `1.26.0`, so a shell that targets a cluster outside that window runs a kubectl outside the supported skew.
+
 ## License
 
 ```

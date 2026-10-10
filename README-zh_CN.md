@@ -34,6 +34,19 @@
    `{"websocket":true,"cookie_needed":false,"origins":["*:*"],"entropy":1983920037}`
    其中websocket的值为`true`，表明webconsole中使用的sockjs使能了websocket功能，因此前端sockJs会建立起跟webconsole的websocket连接。
 
+## 构建 cloudshell 镜像
+
+镜像分三步构建，全部由 `cloudshell/Makefile` 负责：
+
+``` shell
+make -C cloudshell base-image    # 由 cloudshell/base/Dockerfile 产出并推送 BASE_IMG
+make -C cloudshell multi-image   # 推送 IMG-amd64、IMG-arm64，再合成 IMG
+```
+
+`BASE_IMG` 是两个架构 Dockerfile 的 `FROM`：它本身必须是多架构 manifest，且必须先于它们推送。`IMG` 是最终发布的 manifest，**必须使用新的 tag**——Deployment 的拉取策略是 `IfNotPresent`，复用旧 tag 会让 Pod 继续跑旧镜像。这两个变量都不是 chart 的 value：base 镜像是构建期依赖，不属于 `kubecube-chart/images.list`。
+
+两个架构的镜像下载同一个 kubectl，版本由 `KUBECTL_VERSION` 固定，并用 Kubernetes 与二进制一同发布的 sha256 校验。当前固定为 `v1.22.2`；Kubernetes 要求 kubectl 与 apiserver 相差不超过一个 minor，因此它覆盖 apiserver `1.21`–`1.23`。installer 支持 `1.18.20`–`1.26.0` 的成员集群，所以 shell 落到这个窗口之外的集群时，kubectl 处于官方支持范围之外。
+
 ## 开源协议
 
 ```
