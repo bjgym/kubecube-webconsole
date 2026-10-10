@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/kubecube-io/kubecube/pkg/utils/constants"
 	"kubecube-webconsole/errdef"
 	"kubecube-webconsole/utils"
 	"math/rand"
@@ -29,7 +28,6 @@ import (
 
 	clog "github.com/astaxie/beego/logs"
 	"github.com/emicklei/go-restful"
-	"github.com/patrickmn/go-cache"
 	v12 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 )
@@ -43,50 +41,33 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 		errdef.HandleInternalError(response, err)
 		return
 	}
-	ctrlCluster, err := GetPivotCluster()
-	if err != nil {
-		clog.Error("get pivot cluster failed. Error msg: " + err.Error())
-		errdef.HandleInternalError(response, err)
-		return
-	}
 	if clusterInfo == nil {
 		errdef.HandleInternalErrorByCode(response, errdef.ClusterInfoNotFound)
 		return
 	}
-	// get information of pod and container in control cluster
-	v, ok := configMap.Get(constants.LocalCluster)
-	var cfg *rest.Config
-	if !ok {
-		NCfg, err := getControlCluster()
+	// The session belongs to the cluster the user asked for; the pod may run in
+	// that cluster or, while a cluster may not run a shell yet, in the pivot.
+	var pods v12.PodList
+	cfg, err := getNonControlCfg(clusterName)
+	if err == nil {
+		err = listCloudShellPods(cfg, &pods)
+		if err == nil && fetchRandomRunningPod(pods.Items) == nil {
+			err = fmt.Errorf("cluster %v has no running cloud shell pod", clusterName)
+		}
+	}
+	if err != nil {
+		clog.Warn("cloud shell is unavailable in cluster %v, using the pivot instead: %v", clusterName, err)
+		cfg, err = getControlCluster()
 		if err != nil {
 			clog.Error("fail to fetch control cluster, msg: %v", err)
 			errdef.HandleInternalErrorByCode(response, errdef.ControlClusterNotFound)
 			return
 		}
-		cfg = NCfg
-		configMap.Set(ctrlCluster.GetName(), cfg, cache.DefaultExpiration)
-	} else {
-		cfg = v.(*rest.Config)
-	}
-
-	controlRestClient, err := rest.RESTClientFor(cfg)
-	if err != nil {
-		clog.Info("Fail to new rest client from control pane cluster kube config data, from cfg: %#v", cfg)
-		errdef.HandleInternalErrorByCode(response, errdef.InternalServerError)
-		return
-	}
-
-	pods := v12.PodList{}
-	err = controlRestClient.Get().Resource("pods").Namespace(CloudShellNs).Param("labelSelector", CloudShellLabelKey+"="+CloudShellDpName).Do(context.Background()).Into(&pods)
-	if err != nil {
-		clog.Info("Fetch pods of cloud shell fail, err msg: %v", err)
-		errdef.HandleInternalError(response, errdef.InternalServerError)
-		return
-	}
-	if len(pods.Items) == 0 {
-		clog.Info("No pods of cloud shell available, err msg: %v", err)
-		errdef.HandleInternalError(response, errdef.InternalServerError)
-		return
+		if err = listCloudShellPods(cfg, &pods); err != nil {
+			clog.Info("Fetch pods of cloud shell fail, err msg: %v", err)
+			errdef.HandleInternalError(response, errdef.InternalServerError)
+			return
+		}
 	}
 
 	// choose one pod in running status randomly
@@ -101,12 +82,14 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 	podName := runningPod.Name
 
 	shellConnInfo := ConnInfo{
-		Namespace:        CloudShellNs,
-		PodName:          podName,
-		ContainerName:    containerName,
-		ClusterName:      ctrlCluster.GetName(),
-		IsControlCluster: true,
-		Header:           request.Request.Header,
+		Namespace:     CloudShellNs,
+		PodName:       podName,
+		ContainerName: containerName,
+		// the cluster the session was opened for, which is also the cluster its
+		// kubeconfig and its jail are keyed by
+		ClusterName:  clusterName,
+		IsCloudShell: true,
+		Header:       request.Request.Header,
 	}
 
 	connInfoBytes, _ := json.Marshal(shellConnInfo)
@@ -122,6 +105,19 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 	// save container-connect info to memory
 	connMap.Store(sessionId, string(connInfoBytes))
 	_ = response.WriteHeaderAndEntity(http.StatusOK, TerminalResponse{Id: sessionId})
+}
+
+// listCloudShellPods fills pods with the cloud shell pods the given config can
+// see in the cloud shell namespace.
+func listCloudShellPods(cfg *rest.Config, pods *v12.PodList) error {
+	restClient, err := rest.RESTClientFor(cfg)
+	if err != nil {
+		return err
+	}
+
+	return restClient.Get().Resource("pods").Namespace(CloudShellNs).
+		Param("labelSelector", CloudShellLabelKey+"="+CloudShellDpName).
+		Do(context.Background()).Into(pods)
 }
 
 func fetchRandomRunningPod(podArr []v12.Pod) *v12.Pod {
