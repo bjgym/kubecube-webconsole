@@ -10,7 +10,10 @@ WORKDIR /go/src/kubecube-webconsole
 COPY . .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -mod=vendor -a -o webconsole main.go
+# TARGETARCH is set automatically by buildx; a plain native build leaves it
+# empty, which makes GOARCH fall back to the build host's architecture.
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GO111MODULE=on go build -mod=vendor -a -o webconsole main.go
 
 # Copy the ripple into a thin image
 FROM debian:stretch-slim
