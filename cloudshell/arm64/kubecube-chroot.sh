@@ -30,14 +30,25 @@ if [ ! -d $DIR ]; then
     mkdir -p $DIR
     mkdir -p $DIR/root/.kube
     mkdir -p $DIR/tmp
-    mkdir -p $DIR/{bin,lib/x86_64-linux-gnu,lib64,etc,var,usr/lib/x86_64-linux-gnu}
+    # Derived, not hardcoded: this script is copied into both architecture
+    # images, and the x86_64 path it used to name does not exist on arm64.
+    case "$(uname -m)" in
+      aarch64|arm64) MULTIARCH=aarch64-linux-gnu ;;
+      *)             MULTIARCH=x86_64-linux-gnu ;;
+    esac
+    mkdir -p $DIR/{bin,lib/$MULTIARCH,lib64,etc,var,usr/lib/$MULTIARCH}
     mkdir -p $DIR/usr/bin
     ## copy useful binary file
     i=0
     while [[ i -lt ${#BIN_ARR[@]} ]]; do
 	    cp  /bin/${BIN_ARR[i]} $DIR/bin
         list=`ldd /bin/${BIN_ARR[i]} | egrep -o '[/usr]*/lib.*\.[0-9]+'`
-        for j in $list; do cp $j  $DIR/$j; done
+        # mkdir -p first: a library's directory has to exist before it can be
+        # copied into, and the fixed list above does not cover every path ldd
+        # reports. Without this the first copy into a missing directory fails,
+        # the loop carries on, and the chroot ends up with binaries and no
+        # libraries — which is what happened on arm64.
+        for j in $list; do mkdir -p "$DIR/$(dirname $j)"; cp $j  $DIR/$j; done
         let i++
     done
 
@@ -45,7 +56,12 @@ if [ ! -d $DIR ]; then
     while [[ i -lt ${#USR_BIN_ARR[@]} ]]; do
 	    cp  /usr/bin/${USR_BIN_ARR[i]} $DIR/usr/bin
         list=`ldd /usr/bin/${USR_BIN_ARR[i]} | egrep -o '[/usr]*/lib.*\.[0-9]+'`
-        for j in $list; do cp $j  $DIR/$j; done
+        # mkdir -p first: a library's directory has to exist before it can be
+        # copied into, and the fixed list above does not cover every path ldd
+        # reports. Without this the first copy into a missing directory fails,
+        # the loop carries on, and the chroot ends up with binaries and no
+        # libraries — which is what happened on arm64.
+        for j in $list; do mkdir -p "$DIR/$(dirname $j)"; cp $j  $DIR/$j; done
         let i++
     done
 

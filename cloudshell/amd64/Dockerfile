@@ -2,10 +2,12 @@
 # Use of this source code is governed by a Apache license
 # that can be found in the LICENSE file.
 
-# The base image is built from ./base/Dockerfile and published by
-# `make base-image`, which is the only producer of this tag; keep the default
-# here and in the Makefile in step.
-ARG BASE_IMG=hub.c.163.com/kubecube/ubuntu:16.04-tools
+# The base image is built from ./base/Dockerfile by `make base-image`, which is
+# the only producer of this tag; keep the default here and in the Makefile in
+# step. It used to point at hub.c.163.com/kubecube/ubuntu:16.04-tools, a tag on a
+# registry that no longer answers, built from an Ubuntu release whose archive is
+# gone.
+ARG BASE_IMG=kubecube/cloudshell-base:24.04
 FROM ${BASE_IMG}
 
 # Both architectures carry the same kubectl, which the shell script copies into

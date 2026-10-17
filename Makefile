@@ -30,6 +30,17 @@ all: build
 # http://linuxcommand.org/lc3_adv_awk.php
 
 
+# The CloudShell base image. cloudshell/{amd64,arm64}/Dockerfile take it as
+# BASE_IMG and copy kubectl into it. Nothing else builds it, and the tag is a
+# local one on purpose: the base is consumed either by an image built on the same
+# machine or by the offline bundle, never pulled from a registry. The comments in
+# those two Dockerfiles have pointed at `make base-image` since they were written;
+# this is that target.
+CLOUDSHELL_BASE_IMG ?= kubecube/cloudshell-base:24.04
+
+base-image: ## Build the CloudShell base image for this host's architecture.
+	docker build -f ./cloudshell/base/Dockerfile -t ${CLOUDSHELL_BASE_IMG} ./cloudshell
+
 docker-build-webconsole:  #test ## Build docker image with the manager.
 	docker build -f ./Dockerfile -t ${IMG} .
 
