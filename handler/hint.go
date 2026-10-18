@@ -32,11 +32,14 @@ import (
 )
 
 // The terminal is a blind byte pipe: the console sees the bytes the pod writes
-// and nothing about what they mean. `kubectl get` without an output format
-// answers with a table, and a table is a projection of the object, so the
-// gateway — the only component on the path that reads the command — says so out
-// of band. `toast` is the operation metadata.go documents for exactly this, and
-// this is its only producer.
+// and nothing about what they mean. `kubectl get` answers with a table, and a
+// table is a projection of the object — `-o wide` is the same summary view with
+// more columns, not a different kind of output. An explicit format such as
+// `-o json`, `-o yaml` or `-o jsonpath` prints the object itself, or the
+// projection the user asked for, so there is nothing left to explain. The
+// gateway — the only component on the path that reads the command — says which
+// one it was out of band. `toast` is the operation metadata.go documents for
+// exactly this, and this is its only producer.
 const (
 	// hintSummary holds for the command that was just run: the read permission
 	// that let `kubectl get <res>` print anything also allows the yaml of the
@@ -138,9 +141,12 @@ func (c getCommand) namespaceFlag() string {
 	return " -n " + c.namespace
 }
 
-// parseKubectlGet recognises a `kubectl get` line that renders a table. It
-// rejects an explicit output format other than a table: the hint explains what a
-// table hides, which is noise on a command that already printed the object.
+// parseKubectlGet recognises a `kubectl get` line that renders a table. `table`
+// and `wide` are that table — `wide` is the same summary view with more columns
+// — so both are accepted. An explicit format such as `json`, `yaml` or
+// `jsonpath` prints the object itself or the projection the user asked for, and
+// the hint explains what a table hides, which is noise on a command that
+// already printed the object.
 func parseKubectlGet(line string) (getCommand, bool) {
 	fields := strings.Fields(line)
 	if len(fields) < 3 || path.Base(fields[0]) != "kubectl" || fields[1] != "get" {
@@ -169,7 +175,10 @@ func parseKubectlGet(line string) (getCommand, bool) {
 				i++
 				value = args[i]
 			}
-			if value != "table" {
+			// `wide` is the same table with more columns, so the hint says the
+			// same thing about it; every other value is an explicit format that
+			// already printed the object, or the projection the user asked for.
+			if value != "table" && value != "wide" {
 				return getCommand{}, false
 			}
 		case "-n", "--namespace":
