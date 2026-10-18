@@ -1,6 +1,7 @@
 # v1.3.1
 ## Feature
 - cloudshell: a session runs in the cluster it was opened for, and its jail and kubeconfig are keyed by that cluster; the kubeconfig covers that cluster only, and a cluster that runs no cloud shell still falls back to the pivot's
+- cloudshell: a `kubectl get` that renders a table is answered with an out-of-band hint on the `toast` channel the protocol already reserves — the table is a summary, `-o yaml` shows the object, and the related resources it names are the ones the session's own cookie is allowed to read. A command with an explicit output format, and any command whose permissions cannot be confirmed, get nothing
 ## Build
 - cloudshell: the base image tag is a build argument (`BASE_IMG`) and `make base-image` is its only producer, so the tag the architecture images build `FROM` is no longer unaccounted for
 - cloudshell: both architectures download the same kubectl, v1.22.2 from `dl.k8s.io`, checked against the sha256 published next to the binary, replacing the two committed binaries (amd64 carried v1.7.0, arm64 carried v1.22.2); v1.22.2 covers apiservers 1.21–1.23 under the version skew policy, and the installer ships manifests for 1.18.20–1.26.0

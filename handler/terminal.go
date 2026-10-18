@@ -60,25 +60,30 @@ func (t TerminalSession) Read(p []byte) (int, error) {
 	switch msg.Op {
 	case "stdin":
 		clog.Debug("[%v] stdin msg.Data content bytes: %v", t.id, []byte(msg.Data))
-		if !*enableAudit {
-			return copy(p, msg.Data), nil
-		}
-
-		// Audit function
+		// The line is accumulated whether or not auditing is on: the hint below
+		// needs the finished command, and the audit branch reads the same buffer,
+		// so one accumulator serves both.
 		// user enters the enter key
 		if strings.HasSuffix(msg.Data, "\r") {
 			// if no command in buffer, no need to send
 			if t.stdinBuffer.String() != "" {
 				t.stdinBuffer.WriteString(strings.TrimSuffix(msg.Data, "\r"))
-				go func(cmd string) {
-					auditMsg := t.buildAuditMsg(cmd, "stdin")
-					payload, err := json.Marshal(auditMsg)
-					if err != nil {
-						klog.Errorf("marshal stdin audit message failed, %v", err)
-						return
-					}
-					AuditAdapter.Publish(string(payload), t.id)
-				}(t.stdinBuffer.String())
+				cmd := t.stdinBuffer.String()
+
+				// Audit function
+				if *enableAudit {
+					go func(cmd string) {
+						auditMsg := t.buildAuditMsg(cmd, "stdin")
+						payload, err := json.Marshal(auditMsg)
+						if err != nil {
+							klog.Errorf("marshal stdin audit message failed, %v", err)
+							return
+						}
+						AuditAdapter.Publish(string(payload), t.id)
+					}(cmd)
+				}
+
+				go t.sendGetHint(cmd)
 			}
 
 			// clean buffer
