@@ -54,17 +54,25 @@ type TerminalResponse struct {
 
 // ConnInfo stores container-connect related information
 type ConnInfo struct {
-	ClusterName   string `json:"clusterName"`
-	PodName       string `json:"podName"`
-	ContainerName string `json:"containerName"`
-	Namespace     string `json:"namespace"`
-	ScriptUser    string `json:"scriptUser"` // the username used by the script in the container
-	ScriptUID     string `json:"scriptUID"`  // the userid used by the script in the container
+	// ClusterName is the cluster the session was opened for. The jail's
+	// kubeconfig and its directory are keyed by it, so it stays the cluster the
+	// user asked for even when the pod runs somewhere else.
+	ClusterName string `json:"clusterName"`
+	// PodClusterName is the cluster the chosen pod actually runs in. A cluster
+	// that runs no shell of its own is served by the pivot's pod, and the exec
+	// has to be addressed to the cluster holding the pod — not to the one the
+	// session is for. Empty means the two are the same.
+	PodClusterName string `json:"podClusterName,omitempty"`
+	PodName        string `json:"podName"`
+	ContainerName  string `json:"containerName"`
+	Namespace      string `json:"namespace"`
+	ScriptUser     string `json:"scriptUser"` // the username used by the script in the container
+	ScriptUID      string `json:"scriptUID"`  // the userid used by the script in the container
 	// the user permission level used by the script in the container is customized by the user, such as dev, ops, admin
-	ScriptUserAuth   string        `json:"scriptUserAuth"`
-	IsCloudShell     bool          `json:"isCloudShell"`
-	AuditRawInfo     *AuditRawInfo `json:"audit_raw_info,omitempty"`
-	Header           http.Header   `json:"header,omitempty"`
+	ScriptUserAuth string        `json:"scriptUserAuth"`
+	IsCloudShell   bool          `json:"isCloudShell"`
+	AuditRawInfo   *AuditRawInfo `json:"audit_raw_info,omitempty"`
+	Header         http.Header   `json:"header,omitempty"`
 }
 
 type AuditRawInfo struct {

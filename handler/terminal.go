@@ -201,10 +201,20 @@ func getConfigs(sessionID string) (*rest.RESTClient, *rest.Config, *ConnInfo, er
 		return nil, nil, nil, err
 	}
 
-	v, err = getNonControlCfg(info.ClusterName)
+	// The exec is addressed to the cluster holding the pod. When a cluster runs
+	// no shell of its own the session is served by the pivot's pod, so this
+	// differs from info.ClusterName — using the latter addressed the pivot's pod
+	// name to the member's apiserver, which answers 404 and closes the session
+	// the moment it opens.
+	podCluster := info.PodClusterName
+	if podCluster == "" {
+		podCluster = info.ClusterName
+	}
+
+	v, err = getNonControlCfg(podCluster)
 
 	if err != nil {
-		clog.Error("failed to fetch rest.config for cluster [%s], msg: %v", info.ClusterName, err)
+		clog.Error("failed to fetch rest.config for cluster [%s], msg: %v", podCluster, err)
 		return nil, nil, nil, err
 	}
 

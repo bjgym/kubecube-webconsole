@@ -28,6 +28,7 @@ import (
 
 	clog "github.com/astaxie/beego/logs"
 	"github.com/emicklei/go-restful"
+	"github.com/kubecube-io/kubecube/pkg/utils/constants"
 	v12 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 )
@@ -47,7 +48,10 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 	}
 	// The session belongs to the cluster the user asked for; the pod may run in
 	// that cluster or, while a cluster may not run a shell yet, in the pivot.
+	// podCluster tracks which of the two the chosen pod came from, because the
+	// exec has to be addressed to that one.
 	var pods v12.PodList
+	podCluster := clusterName
 	cfg, err := getNonControlCfg(clusterName)
 	if err == nil {
 		err = listCloudShellPods(cfg, &pods)
@@ -68,6 +72,7 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 			errdef.HandleInternalError(response, errdef.InternalServerError)
 			return
 		}
+		podCluster = constants.LocalCluster
 	}
 
 	// choose one pod in running status randomly
@@ -87,9 +92,12 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 		ContainerName: containerName,
 		// the cluster the session was opened for, which is also the cluster its
 		// kubeconfig and its jail are keyed by
-		ClusterName:  clusterName,
-		IsCloudShell: true,
-		Header:       request.Request.Header,
+		ClusterName: clusterName,
+		// where the pod actually is, which is the pivot when the requested
+		// cluster runs no shell
+		PodClusterName: podCluster,
+		IsCloudShell:   true,
+		Header:         request.Request.Header,
 	}
 
 	connInfoBytes, _ := json.Marshal(shellConnInfo)
