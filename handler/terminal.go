@@ -242,6 +242,9 @@ func connectToContainer(k8sClient *rest.RESTClient, cfg *rest.Config, info *Conn
 	var req *rest.Request
 	if info.IsCloudShell {
 		cmds := []string{KubeCubeChrootShPath, "-c", info.ClusterName}
+		if info.ScriptUser != "" {
+			cmds = append(cmds, "-u", info.ScriptUser)
+		}
 		for k, values := range info.Header {
 			for _, value := range values {
 				cmds = append(cmds, "-h")

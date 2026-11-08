@@ -97,7 +97,9 @@ func handleCloudShellExec(request *restful.Request, response *restful.Response) 
 		// cluster runs no shell
 		PodClusterName: podCluster,
 		IsCloudShell:   true,
-		Header:         request.Request.Header,
+		// the script creates the jail and the in-container user from this name
+		ScriptUser: utils.GetUserFromReq(request.Request),
+		Header:     request.Request.Header,
 	}
 
 	connInfoBytes, _ := json.Marshal(shellConnInfo)
