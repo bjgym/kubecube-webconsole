@@ -178,6 +178,12 @@ func initKubeConf(kubeConfData string) *rest.Config {
 		clog.Error("init kubeconfig failed, error msg: %s", err.Error())
 		return nil
 	}
+	return normalizeRESTConfig(cfg)
+}
+
+// RESTClientFor needs an API path, group version and serializer; a raw
+// kubeconfig (or rest.InClusterConfig) has none of them.
+func normalizeRESTConfig(cfg *rest.Config) *rest.Config {
 	groupVersion := schema.GroupVersion{
 		Group:   "",
 		Version: "v1",
@@ -193,7 +199,11 @@ func initKubeConf(kubeConfData string) *rest.Config {
 func getNonControlCfg(clusterName string) (cfg *rest.Config, err error) {
 	// _local_cluster is the pivot itself; it has no Cluster CR to look up.
 	if clusterName == constants.LocalCluster {
-		return rest.InClusterConfig()
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+		return normalizeRESTConfig(cfg), nil
 	}
 	v, ok := configMap.Get(clusterName)
 	if ok {
