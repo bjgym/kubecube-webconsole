@@ -110,7 +110,12 @@ fi
 ## change owner of director to make account able to write
 chown $USERNAME:$USERNAME {$DIR,$DIR/tmp,$DIR/var,$DIR/root}
 
-chroot --userspec=$USERNAME:$USERNAME $DIR /bin/bash
+# Resolve the numeric ids before entering the jail: chroot --userspec resolves
+# the name after the chroot, and the jail's /etc/passwd is not populated, so a
+# name that exists in the pod is "invalid user" inside it.
+UIDNUM=$(id -u "$USERNAME")
+GIDNUM=$(id -g "$USERNAME")
+chroot --userspec="$UIDNUM:$GIDNUM" "$DIR" /bin/bash
 
 echo "set nocp" >> $DIR/root/.vimrc
 source $DIR/root/.vimrc
