@@ -36,16 +36,22 @@
 
 ## 构建 cloudshell 镜像
 
-镜像分三步构建，全部由 `cloudshell/Makefile` 负责：
+正式发布路径是由 `cloudshell/Dockerfile.multiarch` 构建的多架构镜像：
 
 ``` shell
-make -C cloudshell base-image    # 由 cloudshell/base/Dockerfile 产出并推送 BASE_IMG
-make -C cloudshell multi-image   # 推送 IMG-amd64、IMG-arm64，再合成 IMG
+make -C cloudshell release-image IMG=ghcr.io/<owner>/kubecube-cloudshell:<tag>
 ```
 
-`BASE_IMG` 是两个架构 Dockerfile 的 `FROM`：它本身必须是多架构 manifest，且必须先于它们推送。`IMG` 是最终发布的 manifest，**必须使用新的 tag**——Deployment 的拉取策略是 `IfNotPresent`，复用旧 tag 会让 Pod 继续跑旧镜像。这两个变量都不是 chart 的 value：base 镜像是构建期依赖，不属于 `kubecube-chart/images.list`。
+`publish-cloudshell-image` GitHub Actions workflow 会在每次改动 `cloudshell/` 时执行同样的构建，并发布：
 
-两个架构的镜像下载同一个 kubectl，版本由 `KUBECTL_VERSION` 固定，并用 Kubernetes 与二进制一同发布的 sha256 校验。当前固定为 `v1.22.2`；Kubernetes 要求 kubectl 与 apiserver 相差不超过一个 minor，因此它覆盖 apiserver `1.21`–`1.23`。installer 支持 `1.18.20`–`1.26.0` 的成员集群，所以 shell 落到这个窗口之外的集群时，kubectl 处于官方支持范围之外。
+``` text
+ghcr.io/<owner>/kubecube-cloudshell:latest
+ghcr.io/<owner>/kubecube-cloudshell:sha-<commit>
+```
+
+镜像包含受支持的 Ubuntu base、sshd/supervisord 会话，以及由 `KUBECTL_VERSION`（默认 `v1.28.15`）选择的 kubectl。kubectl 按目标架构下载，并用 Kubernetes 与二进制一同发布的 sha256 校验。Chart 通过 `cloudshell.image` 覆盖使用该镜像；Chart 默认值仍保留上游 `docker.io/kubecube/cloudshell` 镜像。
+
+旧的 `base-image` / `multi-image` 目标继续保留，供需要分步构建 base 和两个架构镜像的环境使用；新发布应使用 `release-image` 和 GitHub Actions workflow。
 
 ## 开源协议
 

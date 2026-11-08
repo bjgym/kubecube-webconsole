@@ -38,16 +38,30 @@ During the interaction between the front and webconsole, there is two API calls:
 
 ## Building the cloudshell image
 
-The image is assembled in three steps, all owned by `cloudshell/Makefile`:
+The supported release path is the multi-arch image built from
+`cloudshell/Dockerfile.multiarch`:
 
 ``` shell
-make -C cloudshell base-image    # publishes BASE_IMG from cloudshell/base/Dockerfile
-make -C cloudshell multi-image   # publishes IMG-amd64 and IMG-arm64, then IMG
+make -C cloudshell release-image IMG=ghcr.io/<owner>/kubecube-cloudshell:<tag>
 ```
 
-`BASE_IMG` is what the two architecture Dockerfiles build `FROM`: it has to be a multi-arch manifest and has to be pushed before them. `IMG` is the published manifest, and it has to be a **new tag** — the Deployment pulls with `IfNotPresent`, so a reused tag would keep running the old image. Neither variable is a chart value: the base image is a build-time dependency and does not belong in `kubecube-chart/images.list`.
+The `publish-cloudshell-image` GitHub Actions workflow does the same on every push
+that touches `cloudshell/`, publishing:
 
-Both architecture images download the same kubectl, pinned by `KUBECTL_VERSION` and checked against the sha256 Kubernetes publishes next to the binary. The pin is `v1.22.2`; Kubernetes supports a kubectl within one minor version of the apiserver, so it covers apiservers `1.21`–`1.23`. The installer ships manifests for member clusters from `1.18.20` to `1.26.0`, so a shell that targets a cluster outside that window runs a kubectl outside the supported skew.
+``` text
+ghcr.io/<owner>/kubecube-cloudshell:latest
+ghcr.io/<owner>/kubecube-cloudshell:sha-<commit>
+```
+
+The image contains the supported Ubuntu base, sshd/supervisord session and a kubectl
+selected by `KUBECTL_VERSION` (default `v1.28.15`). kubectl is downloaded per target
+architecture and verified against the sha256 Kubernetes publishes next to the binary.
+The chart consumes the image through its `cloudshell.image` override; the default chart
+value still points at the upstream `docker.io/kubecube/cloudshell` image.
+
+The legacy `base-image` / `multi-image` targets remain for environments that assemble
+the base image and both architectures in separate steps; new releases should use
+`release-image` and the GitHub Actions workflow.
 
 ## License
 

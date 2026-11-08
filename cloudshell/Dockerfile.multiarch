@@ -1,0 +1,49 @@
+# Copyright 2021 The KubeCube Authors. All rights reserved.
+# Use of this source code is governed by a Apache license
+# that can be found in the LICENSE file.
+#
+# Multi-architecture CloudShell image. Build with buildx:
+#
+#   docker buildx build \
+#     --platform linux/amd64,linux/arm64 \
+#     -f cloudshell/Dockerfile.multiarch \
+#     -t ghcr.io/<owner>/kubecube-cloudshell:<tag> \
+#     --push cloudshell
+#
+# The base stage is the same supported Ubuntu image described in
+# cloudshell/base/Dockerfile. The final stage uses TARGETARCH to copy the
+# matching chroot script and download the matching kubectl.
+
+FROM ubuntu:24.04 AS base
+
+LABEL org.opencontainers.image.authors="KubeCube Authors" \
+      org.opencontainers.image.source="https://github.com/kubecube-io/kubecube-webconsole"
+
+RUN mkdir -p /var/run/sshd \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates openssh-server vim tar wget curl rsync bzip2 iptables \
+        tcpdump less telnet net-tools lsof sysstat cron supervisor inetutils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN sed -i -E 's/^#?[[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && grep -q '^PermitRootLogin yes$' /etc/ssh/sshd_config
+
+COPY ./base/sshd.conf /etc/supervisor/conf.d/sshd.conf
+
+FROM base
+
+ARG TARGETARCH
+ARG KUBECTL_VERSION=v1.28.15
+
+COPY ./${TARGETARCH}/kubecube-chroot.sh /kubecube-chroot.sh
+
+RUN set -eux; \
+    curl -fsSL -o /bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl"; \
+    curl -fsSL -o /tmp/kubectl.sha256 "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl.sha256"; \
+    echo "$(cat /tmp/kubectl.sha256)  /bin/kubectl" | sha256sum -c -; \
+    chmod +x /kubecube-chroot.sh /bin/kubectl; \
+    rm -f /tmp/kubectl.sha256
+
+EXPOSE 22
+CMD ["/usr/bin/supervisord"]
