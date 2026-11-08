@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/emicklei/go-restful"
 	"github.com/kubecube-io/kubecube/pkg/clog"
+	"github.com/kubecube-io/kubecube/pkg/utils/constants"
 	"github.com/patrickmn/go-cache"
 	"gopkg.in/igm/sockjs-go.v2/sockjs"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -190,6 +191,10 @@ func initKubeConf(kubeConfData string) *rest.Config {
 
 // get cfg from cache, if it is not in the cache, get it from K8s and update cache
 func getNonControlCfg(clusterName string) (cfg *rest.Config, err error) {
+	// _local_cluster is the pivot itself; it has no Cluster CR to look up.
+	if clusterName == constants.LocalCluster {
+		return rest.InClusterConfig()
+	}
 	v, ok := configMap.Get(clusterName)
 	if ok {
 		return v.(*rest.Config), nil
